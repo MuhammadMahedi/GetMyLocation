@@ -7,6 +7,8 @@ import android.content.IntentSender
 import android.content.pm.PackageManager
 import android.location.Geocoder
 import android.location.Location
+import android.net.ConnectivityManager
+import android.net.NetworkInfo
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import com.google.android.gms.common.api.ResolvableApiException
@@ -39,7 +41,8 @@ class LocationUtil(private val activity: Activity) {
 
         task.addOnSuccessListener {
             // Location settings are satisfied, get the location
-            getLocation()
+           // getLocation()
+            requestLocationUpdates()
         }
 
         task.addOnFailureListener { exception ->
@@ -54,14 +57,44 @@ class LocationUtil(private val activity: Activity) {
     }
 
     // Function to get the current location
-    fun getLocation() {
+//    fun getLocation() {
+//        if (ActivityCompat.checkSelfPermission(
+//                activity,
+//                Manifest.permission.ACCESS_FINE_LOCATION
+//            ) != PackageManager.PERMISSION_GRANTED
+//            && ActivityCompat.checkSelfPermission(
+//                activity,
+//                Manifest.permission.ACCESS_COARSE_LOCATION
+//            ) != PackageManager.PERMISSION_GRANTED
+//        ) {
+//            ActivityCompat.requestPermissions(
+//                activity,
+//                arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+//                LOCATION_PERMISSION_REQUEST_CODE
+//            )
+//            return
+//        }
+//
+//        fusedLocationClient.lastLocation
+//            .addOnSuccessListener { location: Location? ->
+//                if (location != null) {
+//                    val latitude = location.latitude
+//                    val longitude = location.longitude
+//                    val country = getCountryFromLocation(latitude, longitude)
+//                    Toast.makeText(activity, "Lat: $latitude, Lon: $longitude, Country: $country", Toast.LENGTH_LONG).show()
+//                } else {
+//                    Toast.makeText(activity, "Unable to get location", Toast.LENGTH_LONG).show()
+//                }
+//            }
+
+
+    // Request fresh location updates if getLastLocation() returns null
+    fun requestLocationUpdates() {
         if (ActivityCompat.checkSelfPermission(
-                activity,
-                Manifest.permission.ACCESS_FINE_LOCATION
+                activity, Manifest.permission.ACCESS_FINE_LOCATION
             ) != PackageManager.PERMISSION_GRANTED
             && ActivityCompat.checkSelfPermission(
-                activity,
-                Manifest.permission.ACCESS_COARSE_LOCATION
+                activity, Manifest.permission.ACCESS_COARSE_LOCATION
             ) != PackageManager.PERMISSION_GRANTED
         ) {
             ActivityCompat.requestPermissions(
@@ -72,31 +105,40 @@ class LocationUtil(private val activity: Activity) {
             return
         }
 
-        fusedLocationClient.lastLocation
-            .addOnSuccessListener { location: Location? ->
+        val locationCallback = object : LocationCallback() {
+            override fun onLocationResult(locationResult: LocationResult) {
+                val location = locationResult.lastLocation
                 if (location != null) {
                     val latitude = location.latitude
                     val longitude = location.longitude
                     val country = getCountryFromLocation(latitude, longitude)
-                    Toast.makeText(activity, "Lat: $latitude, Lon: $longitude, Country: $country", Toast.LENGTH_LONG).show()
-                } else {
-                    Toast.makeText(activity, "Unable to get location", Toast.LENGTH_LONG).show()
+                    Toast.makeText(activity, "Lat: $latitude, Lon: $longitude, Country: $country", Toast.LENGTH_SHORT).show()
+                    // Stop location updates after getting the location
+                    fusedLocationClient.removeLocationUpdates(this)
+
                 }
             }
+        }
+
+        fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, null)
     }
+
 
     // Helper function to get the country name from latitude and longitude
     private fun getCountryFromLocation(latitude: Double, longitude: Double): String {
         val geocoder = Geocoder(activity, Locale.getDefault())
-        val addresses = geocoder.getFromLocation(latitude, longitude, 1)
-        return addresses?.get(0)?.countryName ?: "Country not found"
+        if(isInternetAvailable(activity)){
+            val addresses = geocoder.getFromLocation(latitude, longitude, 1)
+             return addresses?.get(0)?.countryName ?: "Country not found"
+        }else return "null"
     }
 
     // Handle permission result in MainActivity or Fragment
     fun onRequestPermissionsResult(requestCode: Int, grantResults: IntArray) {
         if (requestCode == LOCATION_PERMISSION_REQUEST_CODE) {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                getLocation()
+                //getLocation()
+                requestLocationUpdates()
             } else {
                 Toast.makeText(activity, "Permission denied", Toast.LENGTH_LONG).show()
             }
@@ -106,9 +148,17 @@ class LocationUtil(private val activity: Activity) {
     // Handle the result of the location settings resolution in MainActivity or Fragment
     fun onActivityResult(requestCode: Int, resultCode: Int) {
         if (requestCode == REQUEST_CHECK_SETTINGS && resultCode == Activity.RESULT_OK) {
-            getLocation()
+            //getLocation()
+            requestLocationUpdates()
         } else {
             Toast.makeText(activity, "GPS not enabled", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    // Helper function to check internet availability
+    private fun isInternetAvailable(context: Context): Boolean {
+        val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val activeNetwork: NetworkInfo? = connectivityManager.activeNetworkInfo
+        return activeNetwork?.isConnectedOrConnecting == true
     }
 }
