@@ -151,7 +151,7 @@ class LocationUtil(private val activity: Activity) {
             //getLocation()
             requestLocationUpdates()
         } else {
-            Toast.makeText(activity, "GPS not enabled", Toast.LENGTH_SHORT).show()
+            Toast.makeText(activity, "GPS not enabled  ", Toast.LENGTH_SHORT).show()
         }
     }
 
